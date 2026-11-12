@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Euler en el Espacio · Artemis II + Saturn V</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="hero">
+    <nav class="nav">
+      <span class="brand">Euler en el Espacio</span>
+      <ul>
+        <li><a href="#simulacion">Simulación</a></li>
+        <li><a href="#explicacion">Método Euler</a></li>
+        <li><a href="#datos">Datos (API)</a></li>
+        <li><a href="#diccionario">Diccionario</a></li>
+        <li><a href="#analisis">Análisis</a></li>
+        <li><a href="#preguntas">Preguntas</a></li>
+        <li><a href="#fuentes">Fuentes</a></li>
+      </ul>
+    </nav>
+    <div class="hero-content">
+      <h1>Euler en el Espacio</h1>
+      <p>Simulación del lanzamiento de un cohete con el método de Euler y exploración en vivo del dataset de trayectoria de Artemis II mediante la API de JPL Horizons.</p>
+      <div class="hero-badges">
+        <span>Método de Euler</span>
+        <span>Saturn V (Apolo 11)</span>
+        <span>Artemis II (NASA/JPL)</span>
+        <span>API en vivo</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="disclaimer">
+      <p><strong>Nota académica.</strong> La simulación de ascenso usa parámetros públicos del Saturn V (Apolo 11). La exploración de datos consulta la API de JPL Horizons para obtener vectores de estado de Artemis II (Orion). Los datos históricos y los parámetros de simulación se distinguen explícitamente en el diccionario de datos.</p>
+    </section>
+
+    <!-- 1. SIMULACIÓN -->
+    <section id="simulacion" class="section">
+      <h2>1. Simulación del lanzamiento (Euler · Saturn V)</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Parámetros de simulación</h3>
+          <div class="field"><label>Masa inicial m₀ (kg)</label><input id="m0" type="number" value="2970000" step="10000" /></div>
+          <div class="field"><label>Masa final primera etapa (kg)</label><input id="mf" type="number" value="131000" step="1000" /></div>
+          <div class="field"><label>Empuje F (N)</label><input id="F" type="number" value="34500000" step="100000" /></div>
+          <div class="field"><label>Tiempo de combustión t_burn (s)</label><input id="tBurn" type="number" value="168" step="1" /></div>
+          <div class="field"><label>Gravedad g (m/s²)</label><input id="g" type="number" value="9.81" step="0.01" /></div>
+          <div class="field"><label>Paso Δt (s)</label><input id="dt" type="number" value="1" step="0.1" min="0.01" /></div>
+          <div class="field"><label>Iteraciones N</label><input id="N" type="number" value="200" step="1" min="1" max="2000" /></div>
+          
+          <div class="actions">
+            <button id="runSim" class="btn-primary">Calcular</button>
+            <button id="playSim" class="btn-secondary">▶ Reproducir</button>
+            <button id="pauseSim" class="btn-secondary">⏸ Pausar</button>
+            <button id="resetSim" class="btn-secondary">Reiniciar</button>
+          </div>
+          <label class="speed">Velocidad
+            <input type="range" id="animSpeed" min="0.25" max="4" step="0.25" value="1" />
+            <span id="animSpeedLabel">1×</span>
+          </label>
+          <p id="simMsg" class="msg"></p>
+        </div>
+        
+        <div class="panel">
+          <h3>Animación</h3>
+          <div class="canvas-wrap"><canvas id="rocketCanvas"></canvas></div>
+          <div class="readout">
+            <div><span class="label">t</span><span id="roT" class="value">0 s</span></div>
+            <div><span class="label">Altura</span><span id="roY" class="value">0 m</span></div>
+            <div><span class="label">Velocidad</span><span id="roV" class="value">0 m/s</span></div>
+            <div><span class="label">Aceleración</span><span id="roA" class="value">0 m/s²</span></div>
+            <div><span class="label">Masa</span><span id="roM" class="value">0 kg</span></div>
+            <div><span class="label">Empuje</span><span id="roF" class="value">0 N</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Tabla de iteraciones (primeras 10 y última)</h3>
+        <div class="table-wrap">
+          <table id="iterTable">
+            <thead><tr><th>n</th><th>t (s)</th><th>y (m)</th><th>v (m/s)</th><th>a (m/s²)</th><th>m (kg)</th><th>F (N)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card"><h3>Altura vs tiempo</h3><canvas id="chartY"></canvas></div>
+        <div class="chart-card"><h3>Velocidad vs tiempo</h3><canvas id="chartV"></canvas></div>
+        <div class="chart-card"><h3>Aceleración vs tiempo</h3><canvas id="chartA"></canvas></div>
+      </div>
+    </section>
+
+    <!-- 2. EXPLICACIÓN DEL MÉTODO -->
+    <section id="explicacion" class="section">
+      <h2>2. ¿Qué es el Método de Euler y por qué lo usamos?</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>El problema físico: Masa variable</h3>
+          <p>Para calcular la altura de un cohete, aplicamos la Segunda Ley de Newton: <code>Fuerza = masa × aceleración</code>. Sin embargo, un cohete como el Saturn V <strong>pierde masa</strong> a medida que quema combustible. Esto hace que la aceleración no sea constante.</p>
+          <p>Resolver esto con una fórmula matemática exacta (analítica) es extremadamente complejo. Por eso, usamos computadoras y <strong>métodos numéricos</strong> para aproximar la solución paso a paso.</p>
+        </div>
+        <div class="panel">
+          <h3>La solución numérica: Euler paso a paso</h3>
+          <p>El método de Euler divide el tiempo en pequeños intervalos (<code>Δt</code>). En cada paso, calcula la aceleración actual y actualiza la velocidad y la posición usando las derivadas:</p>
+          <pre class="formula">
+1. Calculamos la aceleración:
+   a = (Empuje - masa * gravedad) / masa
+
+2. Actualizamos la velocidad (v):
+   v_nueva = v_vieja + a * Δt
+
+3. Actualizamos la altura (y):
+   y_nueva = y_vieja + v_vieja * Δt</pre>
+          <p>Al repetir este cálculo cientos de veces (iteraciones), trazamos toda la trayectoria del cohete.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. EXPLORACIÓN DE DATOS CON API -->
+    <section id="datos" class="section">
+      <h2>3. Exploración del dataset (API JPL Horizons · Artemis II)</h2>
+      <p class="sub">Los datos se solicitan a la API oficial de Horizons. Se consultan los vectores de estado de la nave Orion (COMMAND = -1024) en coordenadas geocéntricas J2000. Si el servidor falla, se muestran datos reales precargados.</p>
+
+      <div class="panel">
+        <h3>Consulta a la API</h3>
+        <div class="grid-3">
+          <div class="field"><label>Inicio (UTC)</label><input id="apiStart" type="date" value="2026-04-02" /></div>
+          <div class="field"><label>Fin (UTC)</label><input id="apiStop" type="date" value="2026-04-03" /></div>
+          <div class="field"><label>Paso</label>
+            <select id="apiStep">
+              <option value="10m">10 minutos</option>
+              <option value="1h">1 hora</option>
+              <option value="6h">6 horas</option>
+              <option value="1d">1 día</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="fetchApi" class="btn-primary">Consultar API</button>
+        </div>
+        <p id="apiMsg" class="msg"></p>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Vista previa de registros</h3>
+          <div class="table-wrap"><table id="datasetTable"><thead></thead><tbody></tbody></table></div>
+          <p class="note">Fuente: <a href="https://ssd-api.jpl.nasa.gov/doc/horizons.html" target="_blank">JPL Horizons API</a>.</p>
+        </div>
+        <div class="panel">
+          <h3>Estadísticas descriptivas</h3>
+          <div id="statsBox"></div>
+          <h3 style="margin-top:1.2rem;">Variables seleccionadas para el modelo</h3>
+          <ul id="selectedVars"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. DICCIONARIO -->
+    <section id="diccionario" class="section">
+      <h2>4. Diccionario de datos</h2>
+      <div class="table-wrap">
+        <table class="dict">
+          <thead>
+            <tr><th>Variable</th><th>Descripción física</th><th>Tipo / Unidad</th><th>Fuente</th><th>Rol en la simulación</th><th>Justificación</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>JDTDB</td><td>Fecha juliana en TDB</td><td>float / días</td><td>JPL Horizons</td><td>No se usa directamente; la simulación usa tiempo relativo.</td><td>Los datos de Artemis II están a intervalos gruesos para un ascenso.</td></tr>
+            <tr><td>Calendar Date</td><td>Fecha calendario UTC</td><td>string</td><td>JPL Horizons</td><td>Contexto temporal.</td><td>Permite filtrar y contextualizar.</td></tr>
+            <tr><td>X, Y, Z</td><td>Posición geocéntrica J2000</td><td>float / km</td><td>JPL Horizons</td><td>No se usan en la simulación 1D.</td><td>El ascenso se modela solo en altura.</td></tr>
+            <tr><td>VX, VY, VZ</td><td>Componentes de velocidad</td><td>float / km/s</td><td>JPL Horizons</td><td>Se usa la magnitud para comparar órdenes de magnitud.</td><td>El Saturn V alcanza ~2.4 km/s al final de la primera etapa.</td></tr>
+            <tr><td><strong>m₀ (Saturn V)</strong></td><td>Masa inicial con propergol</td><td>float / kg</td><td>NASA (Saturn V)</td><td>Entrada de la simulación.</td><td>Determina la inercia inicial y la relación empuje/peso.</td></tr>
+            <tr><td><strong>F (Saturn V)</strong></td><td>Empuje primera etapa</td><td>float / N</td><td>NASA (Saturn V)</td><td>Entrada de la simulación.</td><td>Define la aceleración inicial.</td></tr>
+            <tr><td><strong>t_burn (Saturn V)</strong></td><td>Tiempo de combustión</td><td>float / s</td><td>NASA (Saturn V)</td><td>Entrada de la simulación.</td><td>Marca el fin del empuje.</td></tr>
+            <tr><td><strong>g</strong></td><td>Gravedad superficial</td><td>float / m/s²</td><td>Física</td><td>Entrada de la simulación.</td><td>Se asume constante.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 5. ANÁLISIS -->
+    <section id="analisis" class="section">
+      <h2>5. Análisis matemático y físico</h2>
+      <div class="panel">
+        <h3>Ecuaciones del modelo</h3>
+        <pre class="formula">
+m(t) = m₀ − (m₀ − m_f) · (t / t_burn)      si t ≤ t_burn
+m(t) = m_f                                   si t > t_burn
+
+a(t) = (F − m(t)·g) / m(t)                   si t ≤ t_burn
+a(t) = −g                                    si t > t_burn
+
+v_{n+1} = v_n + a_n · Δt
+y_{n+1} = y_n + v_n · Δt
+        </pre>
+      </div>
+      <div class="panel">
+        <h3>Supuestos y limitaciones</h3>
+        <ul class="assumptions">
+          <li><strong>Movimiento vertical unidimensional.</strong> No se modela la trayectoria curva ni la rotación terrestre.</li>
+          <li><strong>Gravedad constante.</strong> g = 9.81 m/s²; válido solo en altitudes pequeñas.</li>
+          <li><strong>Sin resistencia atmosférica.</strong> El arrastre es dominante en los primeros kilómetros de un lanzamiento real.</li>
+          <li><strong>Una sola etapa.</strong> El Saturn V tenía tres etapas; aquí se modela solo la primera.</li>
+          <li><strong>Empuje constante.</strong> No se modela la variación con la presión atmosférica ni la vectorización.</li>
+          <li><strong>Método de Euler explícito de orden 1.</strong> Error global O(Δt). Los valores absolutos son didácticos, no predictivos.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Comparación de escenarios (Δt)</h3>
+        <div class="table-wrap"><table id="scenarioTable"><thead><tr><th>Δt (s)</th><th>Altura máx. (m)</th><th>Velocidad máx. (m/s)</th><th>Error vs. Δt pequeño</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- 6. PREGUNTAS -->
+    <section id="preguntas" class="section">
+      <h2>6. Preguntas del desafío académico</h2>
+      <p class="sub">Respuestas fundamentadas en el modelo implementado y en los datos de Artemis II. Pensadas para defensa oral.</p>
+
+      <details>
+        <summary>1. ¿Qué es el método de Euler y por qué se usa en este problema?</summary>
+        <p>Es un método numérico explícito de primer orden para resolver EDO con valor inicial. Se aplica cuando la solución analítica no está disponible o es costosa, como ocurre con masa variable por consumo de combustible. En este proyecto se usa para aproximar altura y velocidad a partir de la segunda ley de Newton.</p>
+      </details>
+
+      <details>
+        <summary>2. ¿Cuál es el orden de convergencia y cómo se comprueba empíricamente?</summary>
+        <p>Orden 1: el error local de truncamiento por paso es O(Δt²) y el error global acumulado es O(Δt). En la sección de análisis, la tabla comparativa muestra que al dividir Δt entre 2, el error máximo se reduce aproximadamente a la mitad. Esa es la evidencia empírica del orden O(Δt).</p>
+      </details>
+
+      <details>
+        <summary>3. ¿Qué ocurre si el paso de tiempo Δt es demasiado grande?</summary>
+        <p>El método puede volverse inestable: la solución oscila o diverge. En el cohete, esto se manifiesta como alturas negativas o velocidades que cambian de signo sin sentido físico. Se puede verificar subiendo Δt a 10 s o 20 s en el panel de simulación.</p>
+      </details>
+
+      <details>
+        <summary>4. ¿Por qué la solución de Euler difiere de la solución analítica?</summary>
+        <p>Porque Euler reemplaza la derivada por una diferencia finita hacia adelante y usa el valor de la aceleración (o velocidad) al inicio del intervalo. Esto produce una subestimación de la altura. El error es proporcional a Δt y al tiempo total de simulación.</p>
+      </details>
+
+      <details>
+        <summary>5. ¿Cómo se aplica la segunda ley de Newton en el modelo?</summary>
+        <p>Se asume movimiento vertical y se escribe ΣF = m·a. Las fuerzas son empuje F (hacia arriba) y peso m·g (hacia abajo). Por tanto, a = (F − m·g)/m. Cuando se agota el combustible, F = 0 y el cohete cae con a = −g.</p>
+      </details>
+
+      <details>
+        <summary>6. ¿Qué diferencia hay entre los datos de Artemis II y los parámetros del Saturn V?</summary>
+        <p>Artemis II son vectores de estado reales obtenidos de JPL Horizons, a intervalos de 10 minutos, que describen la trayectoria orbital. El Saturn V son parámetros históricos de diseño tomados de informes de la NASA. Los primeros se usan para exploración de datos; los segundos, como entradas de la simulación.</p>
+      </details>
+
+      <details>
+        <summary>7. ¿Qué supuestos del modelo son críticos para la validez de los resultados?</summary>
+        <p>Gravedad constante, ausencia de resistencia atmosférica, empuje constante, una sola etapa y movimiento unidimensional. En conjunto, el modelo es <strong>didáctico</strong>, no predictivo.</p>
+      </details>
+
+      <details>
+        <summary>8. ¿Qué mejoras numéricas y físicas podrían aplicarse?</summary>
+        <p>Numéricas: Runge-Kutta de orden 2 o 4, métodos adaptativos con control de error. Físicas: gravedad variable con la altura, resistencia atmosférica, empuje variable, etapas múltiples con separación de masa.</p>
+      </details>
+
+      <details>
+        <summary>9. ¿Qué papel jugaron los métodos numéricos en la carrera espacial?</summary>
+        <p>Fueron esenciales para resolver las EDO no lineales de la mecánica orbital. En los años 60 se usaron métodos como Runge-Kutta y predictores-correcores, ejecutados en computadoras como la IBM 7090. Euler es la base conceptual de todos ellos.</p>
+      </details>
+
+      <details>
+        <summary>10. ¿Cómo se relaciona este desafío con la película <em>Mentes brillantes</em>?</summary>
+        <p>La película dramatiza la contribución de matemáticas afroamericanas al programa espacial de la NASA. El vínculo es temático: usar cálculos numéricos y trayectorias para llevar un vehículo al espacio. No se afirma que Euler fuera el método usado por Katherine Johnson; la conexión es motivacional.</p>
+      </details>
+    </section>
+
+    <!-- 7. FUENTES -->
+    <section id="fuentes" class="section">
+      <h2>7. Fuentes y procedencia de los datos</h2>
+      <div class="panel">
+        <ul class="sources">
+          <li><strong>API de JPL Horizons:</strong> <a href="https://ssd-api.jpl.nasa.gov/doc/horizons.html" target="_blank">https://ssd-api.jpl.nasa.gov/doc/horizons.html</a>. Endpoint: <code>https://ssd.jpl.nasa.gov/api/horizons.api</code>. Consulta utilizada: <code>COMMAND='-1024'</code> (Artemis II / Orion).</li>
+          <li><strong>Parámetros del Saturn V (Apolo 11):</strong> Informe post-vuelo <em>Apollo/Saturn V Postflight Trajectory AS-506</em> (NASA, 1969). Masa inicial ≈ 2 970 t, empuje primera etapa ≈ 34 500 kN, tiempo de combustión ≈ 168 s.</li>
+          <li><strong>Documentación del método de Euler:</strong> Burden & Faires, <em>Análisis numérico</em>; Chapra & Canale, <em>Métodos numéricos para ingenieros</em>.</li>
+        </ul>
+        <p class="note">Los datos de Artemis II se obtienen de la API de Horizons. La simulación de ascenso usa parámetros del Saturn V porque Artemis II no es un lanzamiento atmosférico. No se presentan datos sintéticos como históricos.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Euler en el Espacio · Proyecto académico de Métodos Numéricos y Ciencia de Datos.</p>
+  </footer>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
